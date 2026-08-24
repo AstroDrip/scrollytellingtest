@@ -114,3 +114,20 @@ html.lenis body {
   overflow: hidden;
 }
 
+/* ============================================================
+   Small screens — keep the CTA pill inside narrow viewports
+   (desktop rendering is untouched; this only fires ≤ 400px)
+   ============================================================ */
+@media (max-width: 400px) {
+  .cta-text {
+    width: calc(100% - 48px);
+    margin-left: calc((100% - 48px) / -2);
+  }
+
+  .cta-button {
+    font-size: 0.85rem;
+    letter-spacing: 0.22em;
+    padding: 12px 26px;
+  }
+}
+

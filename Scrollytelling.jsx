@@ -21,6 +21,11 @@ import './scrollytelling.css';
  *    beats (1000ms each); chapters 5 & 6 have four beats at 75vh (750ms).
  *    All 26 story beats live inside the 2400vh track.
  *    1ms of timeline == 0.1vh of scroll.
+ * 4. MOBILE FOLLOW-CAM — landscape/desktop keep the authored full-stage
+ *    viewBox untouched (pixel-identical output). Portrait viewports, where
+ *    `slice` fitting crops ~74% of the scene width, drive the viewBox as a
+ *    virtual camera: it eases onto the owl at take-off, tracks it through
+ *    every chapter, and pulls back out for the QOZYD wordmark reveal.
  */
 
 // Absolute beat anchors (ms). Every tween positions against this table so
@@ -40,6 +45,7 @@ export default function Scrollytelling() {
   const rootRef = useRef(null);
   const trackRef = useRef(null);
   const hudRef = useRef(null);
+  const svgRef = useRef(null);
 
   useEffect(() => {
     if (!trackRef.current) return;
@@ -78,15 +84,169 @@ export default function Scrollytelling() {
       // Diagnostic HUD (dev aid — remove together with .qozyd-hud)
       let driverName = 'native';
 
+      /* ===== MOBILE FOLLOW CAMERA =====================================
+       * The 16:9 stage is authored for landscape; `slice` fitting crops a
+       * portrait phone down to ~26% of the scene width, so the owl spends
+       * most of the journey off-frame. On portrait viewports ONLY, steer
+       * the SVG's viewBox as a virtual camera: ease in with a gentle zoom
+       * once the owl takes flight, track it scene-to-scene, then relax
+       * back to the full frame for the QOZYD reveal. Landscape/desktop
+       * never touches the attribute. */
+      const STAGE_W = 1920;
+      const STAGE_H = 1080;
+      const svgEl = svgRef.current;
+      const owlEl = svgEl ? svgEl.querySelector('#owl-flight') : null;
+      const cam = { cx: STAGE_W / 2, cy: STAGE_H / 2, h: STAGE_H };
+      const camTarget = { cx: STAGE_W / 2, cy: STAGE_H / 2, h: STAGE_H };
+      let camRaf = 0;
+      let camLast = performance.now();
+      const CAM_FLIGHT_AT = B.c1b3 + 420; // owl fades in behind the eyelid
+      const CAM_FINALE_AT = B.c8b3;       // wordmark reveal pulls back out
+      const CAM_BLEND = 0.06;             // share of the timeline per blend
+      const CAM_ZOOM = 0.42;              // extra magnification while tracking
+      const CAM_SLACK = 28;               // overdraw tolerance at stage edges
+      // QOZYD reveal row (moon-O + letters) spans x 564..1340, y ~341..460;
+      // frame the whole row with breathing room so nothing is cropped.
+      const CAM_WORDMARK_CX = 952;
+      const CAM_WORDMARK_CY = 400;
+      const CAM_WORDMARK_W = 880;
+      const CAM_MAX_H = 2400;             // sanity ceiling for ultra-thin screens
+
+      const viewportSize = () => ({
+        w: document.documentElement.clientWidth || window.innerWidth,
+        h: document.documentElement.clientHeight || window.innerHeight,
+      });
+
+      // Follow-cam is portrait-only; checked live so rotation Just Works.
+      const camEnabled = () => {
+        const vp = viewportSize();
+        return vp.w > 0 && vp.h > 0 && vp.w / vp.h < 1;
+      };
+
+      // Map a screen-space point into stage coordinates via the live CTM
+      // (works regardless of how Anime.js applied the owl's transforms).
+      const stagePointFromScreen = (px, py) => {
+        if (!svgEl) return null;
+        const m = svgEl.getScreenCTM();
+        if (!m) return null;
+        const det = m.a * m.d - m.b * m.c;
+        if (!det) return null;
+        return {
+          x: (m.d * px - m.c * py + (m.c * m.f - m.d * m.e)) / det,
+          y: (-m.b * px + m.a * py + (m.b * m.e - m.a * m.f)) / det,
+        };
+      };
+
+      // Live centre of the owl in stage coordinates.
+      const owlStageCenter = () => {
+        if (!owlEl) return null;
+        const r = owlEl.getBoundingClientRect();
+        if (!r.width && !r.height) return null;
+        return stagePointFromScreen(r.left + r.width / 2, r.top + r.height / 2);
+      };
+
+      const smoothstep01 = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
+
+      const updateCamTarget = (p) => {
+        if (!camEnabled()) {
+          camTarget.cx = STAGE_W / 2;
+          camTarget.cy = STAGE_H / 2;
+          camTarget.h = STAGE_H;
+          return;
+        }
+        const total = tl.duration || 24000;
+        const ms = p * total;
+        // The finale span is capped so the pull-back completes exactly at
+        // the end of the track (B.c8b3 -> end is only 10% of the timeline).
+        const tFlight = smoothstep01((ms - CAM_FLIGHT_AT) / (total * CAM_BLEND));
+        const tFinale = smoothstep01(
+          (ms - CAM_FINALE_AT) / Math.min(total * CAM_BLEND, total - CAM_FINALE_AT)
+        );
+
+        // Follow point: hold the authored centre through Chapter 1 (moon +
+        // close-up are composed around x=960), then ease onto the owl.
+        let fx = STAGE_W / 2;
+        let fy = STAGE_H / 2;
+        const owl = owlStageCenter();
+        if (owl) {
+          fx += (owl.x - fx) * tFlight;
+          fy += (owl.y - fy) * tFlight;
+        }
+
+        // Framing height: gentle tracking zoom while airborne. At the
+        // finale, relax to whatever height fits the ENTIRE wordmark across
+        // the narrow viewport — on phones that is wider than the authored
+        // stage, which is safe because the void beyond the stage shares
+        // the sky/body colour (#050811).
+        const hTrack = STAGE_H / (1 + CAM_ZOOM * tFlight);
+        let hFinale = STAGE_H;
+        if (tFinale > 0) {
+          const vp = viewportSize();
+          hFinale = Math.min(CAM_MAX_H, CAM_WORDMARK_W / (vp.w / vp.h));
+        }
+        const h = hTrack + (Math.max(hTrack, hFinale) - hTrack) * tFinale;
+
+        fx += (CAM_WORDMARK_CX - fx) * tFinale; // settle on the wordmark row
+        fy += (CAM_WORDMARK_CY - fy) * tFinale;
+
+        const vp = viewportSize();
+        const halfW = (h * (vp.w / vp.h)) / 2;
+        const halfH = h / 2;
+        // Keep the window over the painted stage; once the window is taller
+        // or wider than the stage itself, recentre so overdraw stays symmetrical.
+        if (halfW * 2 >= STAGE_W) fx = STAGE_W / 2;
+        else fx = Math.min(STAGE_W - halfW + CAM_SLACK, Math.max(halfW - CAM_SLACK, fx));
+        if (halfH * 2 >= STAGE_H) fy = STAGE_H / 2;
+        else fy = Math.min(STAGE_H - halfH + CAM_SLACK, Math.max(halfH - CAM_SLACK, fy));
+        camTarget.cx = fx;
+        camTarget.cy = fy;
+        camTarget.h = h;
+      };
+
+      // Ease the live camera toward its target every frame; scrubbing in
+      // either direction stays smooth, and beat-to-beat teleports (c6b3,
+      // c8b1) read as intentional pans instead of hard cuts.
+      const camTick = (now) => {
+        const dt = Math.min(64, now - camLast) / 1000;
+        camLast = now;
+        const k = 1 - Math.exp(-dt * 6.5); // frame-rate independent easing
+        cam.cx += (camTarget.cx - cam.cx) * k;
+        cam.cy += (camTarget.cy - cam.cy) * k;
+        cam.h += (camTarget.h - cam.h) * k;
+        const drift =
+          Math.abs(camTarget.cx - cam.cx) +
+          Math.abs(camTarget.cy - cam.cy) +
+          Math.abs(camTarget.h - cam.h);
+        const homeDrift =
+          Math.abs(cam.cx - STAGE_W / 2) +
+          Math.abs(cam.cy - STAGE_H / 2) +
+          Math.abs(cam.h - STAGE_H);
+        if (!camEnabled() && drift < 0.05 && homeDrift < 0.05) {
+          camRaf = requestAnimationFrame(camTick);
+          return; // desktop: leave the authored viewBox attribute alone
+        }
+        const vp = viewportSize();
+        const w = cam.h * (vp.w / vp.h);
+        if (svgEl) {
+          svgEl.setAttribute('viewBox',
+            (cam.cx - w / 2).toFixed(2) + ' ' +
+            (cam.cy - cam.h / 2).toFixed(2) + ' ' +
+            w.toFixed(2) + ' ' + cam.h.toFixed(2));
+        }
+        camRaf = requestAnimationFrame(camTick);
+      };
+
       // Deterministic playhead: one function owns every write.
       const seekToProgress = (p) => {
         const clamped = Math.min(1, Math.max(0, p));
         tl.seek(tl.duration * clamped);
+        updateCamTarget(clamped);
         if (hudRef.current) {
           const trackH = trackRef.current ? Math.round(trackRef.current.offsetHeight) : 0;
           hudRef.current.textContent =
             driverName + ' · ' + (clamped * 100).toFixed(1) + '% · dur ' +
-            Math.round(tl.duration) + 'ms · track ' + trackH + 'px';
+            Math.round(tl.duration) + 'ms · track ' + trackH + 'px · cam ' +
+            (camEnabled() ? 'follow' : 'off');
         }
       };
 
@@ -450,6 +610,7 @@ export default function Scrollytelling() {
         window.addEventListener('scroll', onNativeScroll, { passive: true });
         disposeScroll = () => window.removeEventListener('scroll', onNativeScroll);
       }
+      camRaf = requestAnimationFrame(camTick);
       seekToProgress(0); // deterministic first frame (also paints the HUD)
       } catch (err) {
         fail(err);
@@ -458,6 +619,7 @@ export default function Scrollytelling() {
 
     return () => {
       if (disposeScroll) disposeScroll();
+      if (camRaf) cancelAnimationFrame(camRaf);
       scope.revert();
     };
   }, []);
@@ -469,6 +631,7 @@ export default function Scrollytelling() {
         <div ref={rootRef}>
           <div className="viewport-canvas">
             <svg
+              ref={svgRef}
               className="story-svg"
               viewBox="0 0 1920 1080"
               preserveAspectRatio="xMidYMid slice"

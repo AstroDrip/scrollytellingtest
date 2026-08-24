@@ -12,11 +12,14 @@ import './scrollytelling.css';
  * 1. FIXED CANVAS — a 2400vh .scroll-track provides scroll length while a
  *    position:fixed 100vh canvas stays locked to the screen. Nothing
  *    physically scrolls away; every visual change lives on the stage.
- * 2. LINEAR SCRUB — one master createTimeline() with ease:'linear' and
+ * 2. EASED SCRUB — one master createTimeline() with ease:'inOutSine' and
  *    autoplay:false. Lenis feeds scroll progress every frame:
- *    tl.seek(tl.duration * progress). Fully reversible, frame-accurate,
- *    zero hidden state. If Lenis cannot initialize, a passive native
- *    scroll listener takes over with identical math.
+ *    tl.seek(tl.duration * progress). Still fully reversible and
+ *    frame-accurate — easing only redistributes motion within each
+ *    tween's own local window, it doesn't add time-based state, so
+ *    scrubbing in either direction stays exact. If Lenis cannot
+ *    initialize, a passive native scroll listener takes over with
+ *    identical math.
  * 3. BEAT GRID — 8 chapters x 300vh. Chapters 1-4 & 7-8 have three 100vh
  *    beats (1000ms each); chapters 5 & 6 have four beats at 75vh (750ms).
  *    All 26 story beats live inside the 2400vh track.
@@ -78,7 +81,7 @@ export default function Scrollytelling() {
 
       // ---- MASTER TIMELINE · linear scrub driven by Lenis ----
       const tl = createTimeline({
-        defaults: { ease: 'linear', duration: 1000 },
+        defaults: { ease: 'inOutSine', duration: 1000 },
         autoplay: false, // the scrollbar is the clock; we seek manually
       });
 
@@ -101,7 +104,7 @@ export default function Scrollytelling() {
       const camTarget = { cx: STAGE_W / 2, cy: STAGE_H / 2, h: STAGE_H };
       let camRaf = 0;
       let camLast = performance.now();
-      const CAM_FLIGHT_AT = B.c1b3 + 420; // owl fades in behind the eyelid
+      const CAM_FLIGHT_AT = B.c1b3 + 820; // owl fades in as the reveal pulls back
       const CAM_FINALE_AT = B.c8b3;       // wordmark reveal pulls back out
       const CAM_BLEND = 0.06;             // share of the timeline per blend
       const CAM_ZOOM = 0.42;              // extra magnification while tracking
@@ -294,17 +297,26 @@ export default function Scrollytelling() {
           duration: 1000,
         }, B.c1b2);
 
-      // Beat 3 — blink; behind the eyelid the world becomes real
+      // Beat 3 — blink; the eyelid closes, and behind it we're back on the
+      // moon alone for a held beat before the camera pulls back to reveal
+      // the real forest scene. Three distinct steps, not a single cut.
       tl.add('#iris-r', { scale: [1, 1.14], duration: 200 }, B.c1b3)
         .add('.lid-rot', { scaleY: [0, 1], duration: 240 }, B.c1b3 + 160)
-        .add('#owl-closeup', { opacity: [1, 0], duration: 60 }, B.c1b3 + 420)
-        .add('#canopy-scene', { opacity: [0, 1], duration: 320 }, B.c1b3 + 420)
-        .add('#owl-flight', { opacity: [0, 1], duration: 240 }, B.c1b3 + 420)
+        .add('#owl-closeup', { opacity: [1, 0], duration: 160 }, B.c1b3 + 400)
+        // — back to the moon: held alone on screen, nothing else moving —
         .add('#moon-wrap', {
-          translateX: [1150, 1330], translateY: [500, 220], scale: [0.3, 0.5],
-          duration: 80,
+          translateX: [1150, 960], translateY: [500, 300], scale: [0.3, 0.85],
+          duration: 320,
         }, B.c1b3 + 420)
-        .add('#canopy-scene', { scale: [1.07, 1], translateY: [-18, 0], duration: 560 }, B.c1b3 + 420);
+        // (a quiet ~100ms pause lives here — the moon simply holds)
+        // — pull back: the forest resolves around it, moon settles into the distant sky —
+        .add('#canopy-scene', { opacity: [0, 1], duration: 300 }, B.c1b3 + 820)
+        .add('#owl-flight', { opacity: [0, 1], duration: 240 }, B.c1b3 + 820)
+        .add('#moon-wrap', {
+          translateX: [960, 1330], translateY: [300, 220], scale: [0.85, 0.5],
+          duration: 320,
+        }, B.c1b3 + 820)
+        .add('#canopy-scene', { scale: [1.07, 1], translateY: [-18, 0], duration: 480 }, B.c1b3 + 820);
 
       /* ========== CHAPTER 2 · THE FIRST FLIGHT — WEB DESIGN ========== */
       // Beat 1 — body lowers, wings part, the branch bends beneath
@@ -367,7 +379,7 @@ export default function Scrollytelling() {
         .add('#hollow-ring', { opacity: [0, 0.9], duration: 400 }, B.c3b3 + 380)
         .add('#hollow-ring', { scale: [1, 1.16], duration: 260 }, B.c3b3 + 560)
         .add('#hollow-ring', { scale: [1.16, 1], duration: 180 }, B.c3b3 + 820)
-        .add('#fireflies', { translateX: [0, 140], translateY: [0, -70], duration: 850 }, B.c3b3 + 130);
+        .add('#firefly-network', { translateX: [0, 140], translateY: [0, -70], duration: 850 }, B.c3b3 + 130);
 
       /* ================ CHAPTER 4 · THE NEST — IMPLIED CARE ================ */
       // Beat 1 — following the final firefly signal toward the hollow
@@ -376,7 +388,7 @@ export default function Scrollytelling() {
           translateX: [960, 1250], translateY: [430, 295],
           scale: [0.6, 0.5], rotate: [-3, -10], duration: 950,
         }, B.c4b1)
-        .add('#fireflies', { opacity: [1, 0.25], duration: 550 }, B.c4b1 + 220);
+        .add('#firefly-network', { opacity: [1, 0.25], duration: 550 }, B.c4b1 + 220);
 
       // Beat 2 — through the opening into the warm geometric interior
       tl.add('#canopy-scene', {
@@ -417,7 +429,14 @@ export default function Scrollytelling() {
         }, B.c5b1 + 140)
         .add('.wn', { rotate: [-28, 26], duration: 480 }, B.c5b1 + 180)
         .add('.wf', { rotate: [-14, 40], duration: 480 }, B.c5b1 + 180)
-        .add('#owl-rotor', { rotate: [-8, 5], duration: 300 }, B.c5b1 + 430)
+        // settle onto the perch...
+        .add('#owl-rotor', { rotate: [-8, 5], duration: 170 }, B.c5b1 + 430)
+        // ...then listen: a small alert head-tilt and ear-perk once landed,
+        // reading as the owl tuning into something out in the dark.
+        .add('#owl-rotor', { rotate: [5, -4], duration: 100 }, B.c5b1 + 600)
+        .add('#owl-rotor', { rotate: [-4, 6], duration: 120 }, B.c5b1 + 700)
+        .add('#owl-ears', { rotate: [0, -8], scaleY: [1, 1.15], duration: 130 }, B.c5b1 + 590)
+        .add('#owl-ears', { rotate: [-8, 4], scaleY: [1.15, 1.04], duration: 160 }, B.c5b1 + 720)
         .add('#fog', { opacity: [0, 1], duration: 540 }, B.c5b1 + 90)
         .add('#fband-1', { translateX: [0, -90], duration: 750 }, B.c5b1)
         .add('#fband-2', { translateX: [0, 70], duration: 750 }, B.c5b1)
@@ -875,17 +894,22 @@ export default function Scrollytelling() {
 
               {/* ===== CHAPTER 3 · FIREFLY NETWORK ===== */}
               <circle id="ff-1" cx="1120" cy="620" r="6" fill="#fde047" filter="url(#glow)" opacity="0" />
-              <g id="net-paths" fill="none" stroke="#fde047" strokeWidth="2" opacity="0.85">
-                <path d="M 880 560 Q 945 520 1010 500" />
-                <path d="M 1010 500 Q 1095 515 1180 540" />
-                <path d="M 1180 540 Q 1225 590 1260 640" />
-                <path d="M 960 660 Q 985 585 1010 500" />
-              </g>
-              <g id="fireflies" filter="url(#glow)">
-                {[[880, 560], [1010, 500], [1180, 540], [1260, 640],
-                  [960, 660], [820, 640], [1330, 580], [1080, 460]].map(([cx, cy], i) => (
-                    <circle key={i} cx={cx} cy={cy} r={5} fill="#fde047" opacity="0" />
-                  ))}
+              {/* net-paths + fireflies share one wrapper so the connection
+                  lines travel and fade together with the dots that drew
+                  them, instead of staying stranded at their original spot. */}
+              <g id="firefly-network">
+                <g id="net-paths" fill="none" stroke="#fde047" strokeWidth="2" opacity="0.85">
+                  <path d="M 880 560 Q 945 520 1010 500" />
+                  <path d="M 1010 500 Q 1095 515 1180 540" />
+                  <path d="M 1180 540 Q 1225 590 1260 640" />
+                  <path d="M 960 660 Q 985 585 1010 500" />
+                </g>
+                <g id="fireflies" filter="url(#glow)">
+                  {[[880, 560], [1010, 500], [1180, 540], [1260, 640],
+                    [960, 660], [820, 640], [1330, 580], [1080, 460]].map(([cx, cy], i) => (
+                      <circle key={i} cx={cx} cy={cy} r={5} fill="#fde047" opacity="0" />
+                    ))}
+                </g>
               </g>
 
               {/* fog bands + hunt spotlight vignette (Chapter 5) */}
@@ -1054,8 +1078,10 @@ export default function Scrollytelling() {
                   <circle cx="8" cy="2" r={3} fill="#f59e0b" opacity="0.5" />
                   <circle cx="2" cy="20" r={3} fill="#f59e0b" opacity="0.5" />
                   <circle cx="40" cy="-48" r={27} fill="#fef3c7" />
-                  <path d="M 24 -70 L 30 -86 L 37 -68 Z" fill="#fef3c7" />
-                  <path d="M 47 -70 L 56 -84 L 58 -66 Z" fill="#fef3c7" />
+                  <g id="owl-ears" style={{ transformOrigin: '41px -70px' }}>
+                    <path d="M 24 -70 L 30 -86 L 37 -68 Z" fill="#fef3c7" />
+                    <path d="M 47 -70 L 56 -84 L 58 -66 Z" fill="#fef3c7" />
+                  </g>
                   <path d="M 22 -52 A 20 20 0 1 1 58 -48" stroke="#fbbf24" strokeWidth="3" fill="none" opacity="0.8" />
                   <circle cx="46" cy="-52" r={5} fill="#1c1917" />
                   <path d="M 62 -50 L 75 -46 L 61 -41 Z" fill="#f59e0b" />

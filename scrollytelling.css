@@ -1,0 +1,116 @@
+/* ============================================================
+   QOZYD scrollytelling — fixed canvas · linear scroll scrub
+   ============================================================ */
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #050811;
+  color: #f8fafc;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  overflow-x: hidden;
+}
+
+/* 2400vh master track = 8 chapters x 300vh of scroll weight
+   (chapters 5 & 6 split their 300vh across four 75vh beats) */
+.scroll-track {
+  position: relative;
+  height: 2400vh;
+  width: 100%;
+}
+
+/* Fixed viewport canvas — locked to the screen surface while the user
+   scrolls the page (immune to ancestor/sticky edge cases) */
+.viewport-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* DEBUG HUD — shows driver · progress% · timeline duration · track height.
+   Delete this block together with the .qozyd-hud JSX once stable. */
+.qozyd-hud {
+  position: fixed;
+  left: 12px;
+  bottom: 12px;
+  z-index: 50;
+  font: 11px/1.4 ui-monospace, Consolas, Menlo, monospace;
+  letter-spacing: 0.02em;
+  color: #7dd3fc;
+  background: rgba(2, 6, 23, 0.78);
+  border: 1px solid rgba(125, 211, 252, 0.35);
+  padding: 6px 10px;
+  border-radius: 6px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.story-svg {
+  width: 100%;
+  height: 100%;
+  max-width: 1920px;
+  max-height: 1080px;
+  display: block;
+}
+
+/* CTA — visibility itself is scrubbed by the master timeline
+   (no React state, no timers: the scrollbar is the clock) */
+.cta-text {
+  position: absolute;
+  bottom: 10%;
+  left: 50%;
+  width: 360px;
+  margin-left: -180px;
+  text-align: center;
+  opacity: 0;
+}
+
+.cta-button {
+  font-size: 1.05rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: #fdf6e3;
+  background: transparent;
+  border: 1px solid rgba(253, 246, 227, 0.55);
+  padding: 14px 34px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background-color 0.25s ease;
+}
+
+.cta-button:hover {
+  background-color: rgba(253, 246, 227, 0.12);
+}
+
+.cta-button:focus-visible {
+  outline: 2px solid #fef08a;
+  outline-offset: 4px;
+}
+
+/* ============================================================
+   Lenis smooth-scroll recommended styles
+   ============================================================ */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+

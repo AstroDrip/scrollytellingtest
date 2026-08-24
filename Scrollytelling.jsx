@@ -51,6 +51,7 @@ export default function Scrollytelling() {
     if (!trackRef.current) return;
 
     let disposeScroll = null;
+    let disposeCamWake = null;
     // Any engine failure becomes visible on the HUD instead of dying silently.
     const fail = (err) => {
       // eslint-disable-next-line no-console
@@ -222,8 +223,11 @@ export default function Scrollytelling() {
           Math.abs(cam.cy - STAGE_H / 2) +
           Math.abs(cam.h - STAGE_H);
         if (!camEnabled() && drift < 0.05 && homeDrift < 0.05) {
-          camRaf = requestAnimationFrame(camTick);
-          return; // desktop: leave the authored viewBox attribute alone
+          // Settled at the authored (desktop) framing with nothing to track —
+          // stop scheduling frames instead of looping forever. A resize or
+          // orientation change (handled below) wakes it back up.
+          camRaf = 0;
+          return;
         }
         const vp = viewportSize();
         const w = cam.h * (vp.w / vp.h);
@@ -236,12 +240,32 @@ export default function Scrollytelling() {
         camRaf = requestAnimationFrame(camTick);
       };
 
+      // Resize/orientation changes can flip camEnabled() (e.g. rotating a
+      // phone) while the tick loop is parked — wake it and re-derive the
+      // target from the current scroll position so it doesn't miss the change.
+      const wakeCamTick = () => {
+        updateCamTarget(currentProgress); // re-derive target for the new viewport
+        if (!camRaf) {
+          camLast = performance.now();
+          camRaf = requestAnimationFrame(camTick);
+        }
+      };
+      window.addEventListener('resize', wakeCamTick);
+      window.addEventListener('orientationchange', wakeCamTick);
+      disposeCamWake = () => {
+        window.removeEventListener('resize', wakeCamTick);
+        window.removeEventListener('orientationchange', wakeCamTick);
+      };
+
       // Deterministic playhead: one function owns every write.
+      let currentProgress = 0;
       const seekToProgress = (p) => {
         const clamped = Math.min(1, Math.max(0, p));
+        currentProgress = clamped;
         tl.seek(tl.duration * clamped);
         updateCamTarget(clamped);
-        if (hudRef.current) {
+        // Dev-only diagnostics — never runs (or renders) in a production build.
+        if (import.meta.env.DEV && hudRef.current) {
           const trackH = trackRef.current ? Math.round(trackRef.current.offsetHeight) : 0;
           hudRef.current.textContent =
             driverName + ' · ' + (clamped * 100).toFixed(1) + '% · dur ' +
@@ -593,13 +617,17 @@ export default function Scrollytelling() {
         .add('.cta-text', { opacity: [0, 1], translateY: [28, 0], duration: 450 }, B.c8b3 + 500);
 
       /* ---- SCROLL DRIVER · Lenis(autoRaf) → progress → seek ---- */
-      try {
-        const lenis = new Lenis({ autoRaf: true });
-        lenis.on('scroll', (e) => seekToProgress(e.progress));
-        disposeScroll = () => lenis.destroy();
-        driverName = 'lenis';
-      } catch {
-        // Native fallback — identical math, no smoothing.
+      // Respect prefers-reduced-motion: Lenis adds its own momentum/inertia
+      // on top of the user's scroll input, which is exactly the kind of
+      // autonomous motion that setting exists to suppress. The story is
+      // still 1:1 scroll-linked either way — this only removes the extra
+      // smoothing layer, falling back to the same native driver used when
+      // Lenis is unavailable.
+      const prefersReducedMotion =
+        typeof window.matchMedia === 'function' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      const useNativeDriver = () => {
         const onNativeScroll = () => {
           const el = trackRef.current;
           if (!el) return;
@@ -609,6 +637,21 @@ export default function Scrollytelling() {
         };
         window.addEventListener('scroll', onNativeScroll, { passive: true });
         disposeScroll = () => window.removeEventListener('scroll', onNativeScroll);
+        driverName = 'native';
+      };
+
+      if (prefersReducedMotion) {
+        useNativeDriver();
+      } else {
+        try {
+          const lenis = new Lenis({ autoRaf: true });
+          lenis.on('scroll', (e) => seekToProgress(e.progress));
+          disposeScroll = () => lenis.destroy();
+          driverName = 'lenis';
+        } catch {
+          // Native fallback — identical math, no smoothing.
+          useNativeDriver();
+        }
       }
       camRaf = requestAnimationFrame(camTick);
       seekToProgress(0); // deterministic first frame (also paints the HUD)
@@ -619,6 +662,7 @@ export default function Scrollytelling() {
 
     return () => {
       if (disposeScroll) disposeScroll();
+      if (disposeCamWake) disposeCamWake();
       if (camRaf) cancelAnimationFrame(camRaf);
       scope.revert();
     };
@@ -1050,8 +1094,10 @@ export default function Scrollytelling() {
               </button>
             </div>
 
-            {/* DEBUG HUD — delete this block + .qozyd-hud CSS once stable */}
-            <div className="qozyd-hud" ref={hudRef}>booting…</div>
+            {/* DEBUG HUD — dev-only; stripped from production builds entirely */}
+            {import.meta.env.DEV && (
+              <div className="qozyd-hud" ref={hudRef}>booting…</div>
+            )}
           </div>
         </div>
       </div>

@@ -5,71 +5,175 @@ import owlWingInner from './assets/owl-wing-inner.png';
 import owlWingMid from './assets/owl-wing-mid.png';
 import owlWingOuter from './assets/owl-wing-outer.png';
 import owlWingTip from './assets/owl-wing-tip.png';
+import {
+  BODY_SCALE,
+  TAIL_RIG,
+  WING_BONES,
+  WING_FEATHER_ATTACHMENTS,
+  WING_SCALE,
+  WING_SHOULDER,
+  imagePlacementFromSourcePivot,
+  owlCameraAnchor,
+} from './owlRigMath.js';
 
-/* Photo wing from base (root/shoulder) out to the tip. */
-const WING_IMAGES = [owlWingBase, owlWingInner, owlWingMid, owlWingOuter, owlWingTip];
+const WING_SOURCE_W = 1448;
+const WING_SOURCE_H = 1086;
 
-/* ---- TUNE: scale everything to sit inside the ~200-unit owl rig ---- */
-const IMAGE_X = {
-  WING: 0.055, // 1448x1086 wing art -> ~80x60 rig units
-  BODY: 0.1,   // 1254x1254 -> ~125 units
-  TAIL: 0.1,
-};
-const WING_W = 1448 * IMAGE_X.WING;
-const WING_H = 1086 * IMAGE_X.WING;
+// Magenta guide-root coordinates in the current source PNG canvases. Keep the
+// canvas dimensions unchanged when the guide pixels are eventually removed.
+const WING_SPECS = Object.freeze({
+  base:  { image: owlWingBase,  sourcePivotX: 1242, sourcePivotY: 652 },
+  inner: { image: owlWingInner, sourcePivotX: 1279, sourcePivotY: 729 },
+  mid:   { image: owlWingMid,   sourcePivotX: 1355, sourcePivotY: 796 },
+  outer: { image: owlWingOuter, sourcePivotX: 1342, sourcePivotY: 904 },
+  tip:   { image: owlWingTip,   sourcePivotX: 1334, sourcePivotY: 779 },
+});
 
-const NEAR_PIVOTS = [
-  { px: 12, py: -18 },
-  { px: 26, py: -30 },
-  { px: 40, py: -42 },
-  { px: 54, py: -54 },
-  { px: 68, py: -66 },
-];
+function FeatherLayer({ attachment }) {
+  const spec = WING_SPECS[attachment.name];
+  const box = imagePlacementFromSourcePivot({
+    sourceWidth: WING_SOURCE_W,
+    sourceHeight: WING_SOURCE_H,
+    sourcePivotX: spec.sourcePivotX,
+    sourcePivotY: spec.sourcePivotY,
+    destinationPivotX: attachment.x,
+    destinationPivotY: attachment.y,
+    scale: WING_SCALE,
+  });
 
-function WingSegment({ segmentIndex, prefixes, image }) {
-  const pivot = NEAR_PIVOTS[segmentIndex];
   return (
-    <g className={`wing-flex ${prefixes.flex}`} data-px={pivot.px} data-py={pivot.py}>
-      <g className={`wing-idle ${prefixes.idle}`} data-px={pivot.px} data-py={pivot.py}>
-        <image
-          href={image}
-          x={pivot.px - WING_W / 2}
-          y={pivot.py - WING_H / 2}
-          width={WING_W}
-          height={WING_H}
-        />
+    <g transform={`rotate(${attachment.rotate} ${attachment.x} ${attachment.y})`}>
+      <image
+        href={spec.image}
+        x={box.x}
+        y={box.y}
+        width={box.width}
+        height={box.height}
+        preserveAspectRatio="xMidYMid meet"
+      />
+      {/* Temporary paint-over for the baked magenta root guide. The torso
+          masks the shoulder guide; these covers hide elbow/wrist guides. */}
+      <circle cx={attachment.x} cy={attachment.y} r="2.2" fill="#f3f1ed" />
+    </g>
+  );
+}
+
+function StructuralBone({ index, flexPrefix }) {
+  const bone = WING_BONES[index];
+  const attachments = WING_FEATHER_ATTACHMENTS.filter((item) => item.bone === bone.name);
+  const next = WING_BONES[index + 1];
+
+  return (
+    <g
+      className={`wing-pose-joint ${flexPrefix}-pose-joint`}
+      data-px="0"
+      data-py="0"
+      data-joint-index={index}
+    >
+      <g
+        className={`wing-flex ${flexPrefix}-flex`}
+        data-px="0"
+        data-py="0"
+        data-wave-index={bone.waveIndex}
+      >
+        <g
+          className={`wing-idle ${flexPrefix}-idle`}
+          data-px="0"
+          data-py="0"
+          data-wave-index={bone.waveIndex}
+        >
+          {attachments.map((attachment) => (
+            <FeatherLayer key={attachment.name} attachment={attachment} />
+          ))}
+
+          {next && (
+            <g transform={`translate(${next.x} ${next.y})`}>
+              <StructuralBone index={index + 1} flexPrefix={flexPrefix} />
+            </g>
+          )}
+        </g>
       </g>
     </g>
   );
 }
 
-function WingLayer({ wingClass, flexPrefix, flip }) {
+function WingLayer({ wingClass, flexPrefix, side }) {
+  const x = side === 'left' ? -WING_SHOULDER.x : WING_SHOULDER.x;
+  const flip = side === 'right' ? ' scale(-1 1)' : '';
+
   return (
-    <g transform={flip ? 'scale(-1 1)' : undefined}>
+    <g transform={`translate(${x} ${WING_SHOULDER.y})${flip}`}>
+      {/* .wn/.wf remain the existing large shoulder controls. Everything
+          below them is local bird-like structure, not five independent wings. */}
       <g className={`wing ${wingClass}`}>
-        {WING_IMAGES.map((image, index) => (
-          <WingSegment key={index} segmentIndex={index}
-            prefixes={{ flex: flexPrefix + '-flex', idle: flexPrefix + '-idle' }}
-            image={image} />
-        ))}
+        <g className={`wing-pose-root ${flexPrefix}-pose-root`} opacity="0">
+          <StructuralBone index={0} flexPrefix={flexPrefix} />
+        </g>
       </g>
     </g>
   );
 }
 
 export default function OwlRig() {
-  const bodyW = 1254 * IMAGE_X.BODY;
-  const bodyH = 1254 * IMAGE_X.BODY;
-  const tailW = 1254 * IMAGE_X.TAIL;
-  const tailH = 1254 * IMAGE_X.TAIL;
+  const bodyW = 1254 * BODY_SCALE;
+  const bodyH = 1254 * BODY_SCALE;
+  const tailBox = imagePlacementFromSourcePivot({
+    sourceWidth: 1254,
+    sourceHeight: 1254,
+    sourcePivotX: TAIL_RIG.sourcePivotX,
+    sourcePivotY: TAIL_RIG.sourcePivotY,
+    destinationPivotX: 0,
+    destinationPivotY: 0,
+    scale: TAIL_RIG.scale,
+  });
+  const cam = owlCameraAnchor();
 
   return (
     <g id="owl-flight" opacity="0">
       <g id="owl-rotor">
-        <image href={owlTailBack} x={-tailW / 2} y={-tailH * 0.55} width={tailW} height={tailH} opacity="0.9" />
-        <WingLayer wingClass="wf" flexPrefix="wf" flip />
-        <image href={owlBodyBack} x={-bodyW / 2} y={-bodyH / 2} width={bodyW} height={bodyH} />
-        <WingLayer wingClass="wn" flexPrefix="wn" flip={false} />
+        {/* Tail root is fixed beneath the torso; #owl-tail-pose changes only
+            its flight/perch silhouette without moving the attachment point. */}
+        <g transform={`translate(${TAIL_RIG.x} ${TAIL_RIG.y})`}>
+          <g id="owl-tail-pose">
+            <image
+              id="owl-tail"
+              href={owlTailBack}
+              x={tailBox.x}
+              y={tailBox.y}
+              width={tailBox.width}
+              height={tailBox.height}
+            />
+          </g>
+        </g>
+
+        <WingLayer wingClass="wf" flexPrefix="wf" side="left" />
+        <WingLayer wingClass="wn" flexPrefix="wn" side="right" />
+
+        {/* Torso renders over both shoulder roots, visually welding the wing
+            covers into the body while leaving almost the full wing visible. */}
+        <g id="owl-body-pose">
+          <image
+            id="owl-body"
+            href={owlBodyBack}
+            x={-bodyW / 2}
+            y={-bodyH / 2}
+            width={bodyW}
+            height={bodyH}
+          />
+        </g>
+
+        <rect
+          id="owl-camera-anchor"
+          x={cam.x - 0.5}
+          y={cam.y - 0.5}
+          width="1"
+          height="1"
+          fill="transparent"
+          pointerEvents="none"
+        />
+
+        {/* Existing choreography still targets this selector. Ear artwork is
+            baked into owl-body-back.png, so this remains a compatibility hook. */}
         <g id="owl-ears" />
       </g>
     </g>

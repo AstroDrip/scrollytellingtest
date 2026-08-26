@@ -4,7 +4,12 @@ import Lenis from 'lenis';
 import './scrollytelling.css';
 import moonUrl from './assets/moon.png';
 import OwlRig from './OwlRig.jsx';
-import { SEGMENT_GAIN, isInRanges, sampleWingWave } from './wingMotion.js';
+import { isInRanges, sampleWingWave } from './wingMotion.js';
+import {
+  idleJointGain,
+  owlPoseAt,
+  shouldIdleWingAnimate,
+} from './owlRigMath.js';
 
 /**
  * QOZYD — cinematic scroll-driven narrative.
@@ -96,18 +101,20 @@ export default function Scrollytelling() {
        * the master shoulder rotations.
        */
       const WING_WAVE_EVENTS = [
-        { at: B.c2b2,       duration: 720, amplitude: 14 },
-        { at: B.c2b3,       duration: 760, amplitude: 6 },
-        { at: B.c3b1 + 60,  duration: 850, amplitude: 4.5 },
-        { at: B.c4b1,       duration: 900, amplitude: 5 },
-        { at: B.c5b3,       duration: 640, amplitude: 11 },
-        { at: B.c6b3 + 100, duration: 620, amplitude: 8 },
-        { at: B.c6b4,       duration: 680, amplitude: 6 },
-        { at: B.c7b1,       duration: 820, amplitude: 5.5 },
-        { at: B.c7b2,       duration: 820, amplitude: 5.5 },
-        { at: B.c7b3,       duration: 820, amplitude: 5.5 },
-        { at: B.c8b1 + 160, duration: 720, amplitude: 6 },
-        { at: B.c8b2 + 250, duration: 520, amplitude: 10 },
+        // Three structural joints now carry the wave. Strong motion is saved
+        // for takeoff/swoop/landing; ordinary travel is predominantly glide.
+        { at: B.c2b2,       duration: 720, amplitude: 4.5 },
+        { at: B.c2b3,       duration: 760, amplitude: 1.2 },
+        { at: B.c3b1 + 60,  duration: 850, amplitude: 1.0 },
+        { at: B.c4b1,       duration: 900, amplitude: 1.2 },
+        { at: B.c5b3,       duration: 640, amplitude: 3.0 },
+        { at: B.c6b3 + 100, duration: 620, amplitude: 1.8 },
+        { at: B.c6b4,       duration: 680, amplitude: 1.1 },
+        { at: B.c7b1,       duration: 820, amplitude: 1.0 },
+        { at: B.c7b2,       duration: 820, amplitude: 1.0 },
+        { at: B.c7b3,       duration: 820, amplitude: 1.0 },
+        { at: B.c8b1 + 160, duration: 720, amplitude: 1.1 },
+        { at: B.c8b2 + 250, duration: 520, amplitude: 3.0 },
       ];
       const wingFlexNodes = {
         near: Array.from(rootRef.current.querySelectorAll('.wn-flex')),
@@ -120,13 +127,48 @@ export default function Scrollytelling() {
         node.setAttribute('transform', `rotate(${angle.toFixed(3)} ${px} ${py})`);
       };
       const applyScrollWingFlex = (ms) => {
-        wingFlexNodes.near.forEach((node, i) => {
-          setSvgRotation(node, sampleWingWave(ms, WING_WAVE_EVENTS, i));
+        wingFlexNodes.near.forEach((node) => {
+          const waveIndex = Number(node.dataset.waveIndex || 0);
+          setSvgRotation(node, sampleWingWave(ms, WING_WAVE_EVENTS, waveIndex));
         });
-        wingFlexNodes.far.forEach((node, i) => {
-          // Tiny extra lag keeps both wings coordinated without looking cloned.
-          setSvgRotation(node, sampleWingWave(ms, WING_WAVE_EVENTS, i, 22) * 0.92);
+        wingFlexNodes.far.forEach((node) => {
+          const waveIndex = Number(node.dataset.waveIndex || 0);
+          // Readable but restrained asymmetry: the far wing follows slightly later.
+          setSvgRotation(node, sampleWingWave(ms, WING_WAVE_EVENTS, waveIndex, 45) * 0.94);
         });
+      };
+
+      // Three structural joints carry pose + flex; five PNG feather layers
+      // are attached to those joints rather than acting as five separate bones.
+      const wingPoseRoots = {
+        near: rootRef.current.querySelector('.wn-pose-root'),
+        far: rootRef.current.querySelector('.wf-pose-root'),
+      };
+      const wingPoseJoints = {
+        near: Array.from(rootRef.current.querySelectorAll('.wn-pose-joint')),
+        far: Array.from(rootRef.current.querySelectorAll('.wf-pose-joint')),
+      };
+      const tailPoseNode = rootRef.current.querySelector('#owl-tail-pose');
+      const bodyPoseNode = rootRef.current.querySelector('#owl-body-pose');
+      const applyOwlPose = (ms) => {
+        const pose = owlPoseAt(ms);
+        [wingPoseRoots.near, wingPoseRoots.far].forEach((node) => {
+          if (!node) return;
+          node.setAttribute('opacity', pose.wing.opacity.toFixed(3));
+          node.setAttribute('transform',
+            `scale(${pose.wing.scaleX.toFixed(3)} ${pose.wing.scaleY.toFixed(3)})`);
+        });
+        [wingPoseJoints.near, wingPoseJoints.far].forEach((nodes) => {
+          nodes.forEach((node, index) => setSvgRotation(node, pose.wing.joints[index] || 0));
+        });
+        if (tailPoseNode) {
+          tailPoseNode.setAttribute('transform',
+            `translate(0 ${pose.tail.translateY.toFixed(3)}) rotate(${pose.tail.rotate.toFixed(3)}) scale(${pose.tail.scaleX.toFixed(3)} ${pose.tail.scaleY.toFixed(3)})`);
+        }
+        if (bodyPoseNode) {
+          bodyPoseNode.setAttribute('transform',
+            `translate(0 ${pose.body.translateY.toFixed(3)}) scale(${pose.body.scaleX.toFixed(3)} ${pose.body.scaleY.toFixed(3)})`);
+        }
       };
       const resetAllSegmentFlex = () => {
         const all = Array.from(rootRef.current.querySelectorAll('.wing-flex'));
@@ -151,7 +193,7 @@ export default function Scrollytelling() {
       const STAGE_W = 1920;
       const STAGE_H = 1080;
       const svgEl = svgRef.current;
-      const owlEl = svgEl ? svgEl.querySelector('#owl-flight') : null;
+      const owlAnchorEl = svgEl ? svgEl.querySelector('#owl-camera-anchor') : null;
       const cam = { cx: STAGE_W / 2, cy: STAGE_H / 2, h: STAGE_H };
       const camTarget = { cx: STAGE_W / 2, cy: STAGE_H / 2, h: STAGE_H };
       let camRaf = 0;
@@ -193,10 +235,11 @@ export default function Scrollytelling() {
         };
       };
 
-      // Live centre of the owl in stage coordinates.
+      // Fixed torso anchor in stage coordinates. Wide/flapping wings no
+      // longer change the mobile follow-camera target through their bbox.
       const owlStageCenter = () => {
-        if (!owlEl) return null;
-        const r = owlEl.getBoundingClientRect();
+        if (!owlAnchorEl) return null;
+        const r = owlAnchorEl.getBoundingClientRect();
         if (!r.width && !r.height) return null;
         return stagePointFromScreen(r.left + r.width / 2, r.top + r.height / 2);
       };
@@ -314,11 +357,17 @@ export default function Scrollytelling() {
 
       // Deterministic playhead: one function owns every write.
       let currentProgress = 0;
+      let lastScrollAt = performance.now();
       const seekToProgress = (p) => {
         const clamped = Math.min(1, Math.max(0, p));
+        if (Math.abs(clamped - currentProgress) > 0.000005) {
+          lastScrollAt = performance.now();
+        }
         currentProgress = clamped;
-        tl.seek(tl.duration * clamped);
-        applyScrollWingFlex(tl.duration * clamped);
+        const ms = tl.duration * clamped;
+        tl.seek(ms);
+        applyOwlPose(ms);
+        applyScrollWingFlex(ms);
         updateCamTarget(clamped);
         // Dev-only diagnostics — never runs (or renders) in a production build.
         if (import.meta.env.DEV && hudRef.current) {
@@ -387,10 +436,10 @@ export default function Scrollytelling() {
           translateX: [430, 880], translateY: [498, 290],
           scale: [1.06, 0.72], rotate: [0, -6], duration: 720,
         }, B.c2b2)
-        .add('.wn', { rotate: [-4, -62], duration: 320 }, B.c2b2)
-        .add('.wn', { rotate: [-62, 10], duration: 400 }, B.c2b2 + 320)
-        .add('.wf', { rotate: [6, -54], duration: 320 }, B.c2b2 + 40)
-        .add('.wf', { rotate: [-54, 16], duration: 400 }, B.c2b2 + 360)
+        .add('.wn', { rotate: [-4, -24], duration: 320 }, B.c2b2)
+        .add('.wn', { rotate: [-24, 6], duration: 400 }, B.c2b2 + 320)
+        .add('.wf', { rotate: [6, -20], duration: 320 }, B.c2b2 + 40)
+        .add('.wf', { rotate: [-20, 8], duration: 400 }, B.c2b2 + 360)
         .add('#leafL', { translateX: [0, -560], duration: 650 }, B.c2b2 + 60)
         .add('#leafR', { translateX: [0, 560], duration: 650 }, B.c2b2 + 60)
         .add('#leafL', { opacity: [1, 0], duration: 160 }, B.c2b2 + 550)
@@ -406,8 +455,8 @@ export default function Scrollytelling() {
           translateX: [880, 960], translateY: [290, 430],
           scale: [0.72, 0.6], rotate: [-6, -3], duration: 1000,
         }, B.c2b3)
-        .add('.wn', { rotate: [10, -28], duration: 500 }, B.c2b3)
-        .add('.wf', { rotate: [16, -14], duration: 500 }, B.c2b3)
+        .add('.wn', { rotate: [6, -4], duration: 500 }, B.c2b3)
+        .add('.wf', { rotate: [8, -2], duration: 500 }, B.c2b3)
         .add('#owl-rotor', { translateY: [19, 8], duration: 500 }, B.c2b3)
         .add('#owl-rotor', { translateY: [8, 0], duration: 500 }, B.c2b3 + 500);
 
@@ -463,10 +512,10 @@ export default function Scrollytelling() {
           translateX: [1250, 1185], translateY: [295, 415],
           scale: [0.5, 0.56], duration: 520,
         }, B.c4b3 + 300)
-        .add('.wn', { rotate: [-28, -72], duration: 300 }, B.c4b3 + 520)
+        .add('.wn', { rotate: [-4, -24], duration: 300 }, B.c4b3 + 520)
         .add('#strand-rot', { rotate: [0, 9], duration: 240 }, B.c4b3 + 600)
         .add('#strand-rot', { rotate: [9, 0], duration: 220 }, B.c4b3 + 780)
-        .add('.wn', { rotate: [-72, -28], duration: 220 }, B.c4b3 + 780);
+        .add('.wn', { rotate: [-24, -4], duration: 220 }, B.c4b3 + 780);
 
       /* ===================== CHAPTER 5 · THE HUNT (4 x 75vh) ===================== */
       // Beat 1 — perched above the dark, fog-covered canopy; listening
@@ -480,8 +529,8 @@ export default function Scrollytelling() {
           translateX: [1185, 300], translateY: [415, 470],
           scale: [0.56, 0.8], rotate: [-10, 0], duration: 620,
         }, B.c5b1 + 140)
-        .add('.wn', { rotate: [-28, 26], duration: 480 }, B.c5b1 + 180)
-        .add('.wf', { rotate: [-14, 40], duration: 480 }, B.c5b1 + 180)
+        .add('.wn', { rotate: [-4, 18], duration: 480 }, B.c5b1 + 180)
+        .add('.wf', { rotate: [-2, 20], duration: 480 }, B.c5b1 + 180)
         // settle onto the perch...
         .add('#owl-rotor', { rotate: [-8, 5], duration: 170 }, B.c5b1 + 430)
         // ...then listen: a small alert head-tilt and ear-perk once landed,
@@ -531,8 +580,8 @@ export default function Scrollytelling() {
         translateX: [300, 468], translateY: [470, 862],
         scale: [0.8, 0.52], rotate: [0, 26], duration: 700,
       }, B.c5b3)
-        .add('.wn', { rotate: [26, 64], duration: 320 }, B.c5b3 + 40)
-        .add('.wf', { rotate: [40, 70], duration: 320 }, B.c5b3 + 40)
+        .add('.wn', { rotate: [18, 30], duration: 320 }, B.c5b3 + 40)
+        .add('.wf', { rotate: [20, 32], duration: 320 }, B.c5b3 + 40)
         .add('#hunt-vignette', { opacity: [0, 1], duration: 560 }, B.c5b3 + 90)
         .add('#night-grade', { opacity: [0.5, 0.78], duration: 520 }, B.c5b3 + 90)
         .add('#fog', { opacity: [1, 0.22], duration: 520 }, B.c5b3 + 140)
@@ -560,8 +609,8 @@ export default function Scrollytelling() {
           translateX: [448, 430], translateY: [876, 892],
           scale: [0.52, 0.34], rotate: [16, 0], duration: 620,
         }, B.c6b1 + 60)
-        .add('.wn', { rotate: [64, 34], duration: 380 }, B.c6b1 + 120)
-        .add('.wf', { rotate: [70, 44], duration: 380 }, B.c6b1 + 120)
+        .add('.wn', { rotate: [30, 20], duration: 380 }, B.c6b1 + 120)
+        .add('.wf', { rotate: [32, 22], duration: 380 }, B.c6b1 + 120)
         .add('#owl-flight', { opacity: [1, 0], duration: 180 }, B.c6b1 + 540);
 
       // Beat 2 — a dark aperture swallows the frame; descent behind the owl
@@ -584,8 +633,8 @@ export default function Scrollytelling() {
       }, B.c6b3)
         .add('#owl-flight', { opacity: [0, 1], duration: 120 }, B.c6b3 + 12)
         .add('#owl-flight', { translateY: [-130, 540], duration: 690 }, B.c6b3 + 12)
-        .add('.wn', { rotate: [34, -12], duration: 280 }, B.c6b3 + 120)
-        .add('.wf', { rotate: [44, -6], duration: 280 }, B.c6b3 + 120)
+        .add('.wn', { rotate: [20, -4], duration: 280 }, B.c6b3 + 120)
+        .add('.wf', { rotate: [22, -2], duration: 280 }, B.c6b3 + 120)
         .add('.fun-cap', { opacity: [0.15, 1], duration: 260, delay: stagger(70) }, B.c6b3)
         .add('.fun-cap', { opacity: [1, 0.15], duration: 260, delay: stagger(70) }, B.c6b3 + 260)
         .add('.lit', { opacity: [0, 0.5], duration: 260, delay: stagger(70) }, B.c6b3)
@@ -647,8 +696,8 @@ export default function Scrollytelling() {
           translateX: [2060, 1180], translateY: [700, 640],
           scale: [0.42, 0.6], rotate: [0, -5], duration: 820,
         }, B.c8b1 + 160)
-        .add('.wn', { rotate: [34, -30], duration: 400 }, B.c8b1 + 200)
-        .add('.wf', { rotate: [44, -16], duration: 400 }, B.c8b1 + 200);
+        .add('.wn', { rotate: [-4, -6], duration: 400 }, B.c8b1 + 200)
+        .add('.wf', { rotate: [-2, -4], duration: 400 }, B.c8b1 + 200);
 
       // Beat 2 — low glide over glowing ripples; two worlds meet; landing
       tl.add('#ripple-w-0', {
@@ -672,9 +721,9 @@ export default function Scrollytelling() {
           translateX: [1180, 1360], translateY: [640, 556],
           rotate: [-5, 0], scale: [0.6, 0.62], duration: 550,
         }, B.c8b2 + 250)
-        .add('.wn', { rotate: [-30, -46], duration: 200 }, B.c8b2 + 250)
-        .add('.wn', { rotate: [-46, 30], duration: 250 }, B.c8b2 + 480)
-        .add('.wf', { rotate: [-16, 42], duration: 250 }, B.c8b2 + 480)
+        .add('.wn', { rotate: [-6, -16], duration: 200 }, B.c8b2 + 250)
+        .add('.wn', { rotate: [-16, 10], duration: 250 }, B.c8b2 + 480)
+        .add('.wf', { rotate: [-4, 12], duration: 250 }, B.c8b2 + 480)
         .add('#pond-stars', { opacity: [0.45, 0.75], duration: 1000 }, B.c8b2);
 
       // Beat 3 — Q 🌕 Z Y D across the sky · "Start the journey."
@@ -698,8 +747,6 @@ export default function Scrollytelling() {
       // still 1:1 scroll-linked either way — this only removes the extra
       // smoothing layer, falling back to the same native driver used when
       // Lenis is unavailable.
-      // ---- Scroll timestamp used by the idle wing relaxation ----
-      let lastScrollAt = 0;
 
       const prefersReducedMotion =
         typeof window.matchMedia === 'function' &&
@@ -738,14 +785,16 @@ export default function Scrollytelling() {
        * Fully bypassed for prefers-reduced-motion. Never touches the
        * scroll-driven segment flex: .wing-idle is a separate wrapper.
        ******************************************************************/
-      const AIRBORNE_RANGES = [[4000, 10000], [16000, 22000]];
+      const AIRBORNE_RANGES = [[4000, 10000], [13500, 15000], [16500, 22480]];
+      const IDLE_DELAY_MS = 180;
       const IDLE_RATE_ENTER = 4.0;
       const IDLE_RATE_EXIT = 12.0;
       const IDLE_AIRBORNE_AMPLITUDE = {
-        forest: 4.0,
-        hunt: 2.3,
-        cavern: 3.0,
-        pond: 2.1,
+        // Idle is feather loading during a glide, not a repeated whole-wing flap.
+        forest: 1.2,
+        hunt: 0.45,
+        cavern: 1.0,
+        pond: 0.7,
       };
 
       const idleNodes = {
@@ -791,20 +840,28 @@ export default function Scrollytelling() {
         lastActiveAt = now;
         const ms = currentProgress * tl.duration;
         const amplitude = idleAmplitudeAt(ms);
-        const wantBlend = amplitude > 0 ? 1 : 0;
+        const wantBlend = shouldIdleWingAnimate(
+          now,
+          lastScrollAt,
+          ms,
+          AIRBORNE_RANGES,
+          IDLE_DELAY_MS
+        ) ? 1 : 0;
         idleBlend += (wantBlend - idleBlend) * Math.min(1, dt * (wantBlend ? IDLE_RATE_ENTER : IDLE_RATE_EXIT));
         if (idleBlend < 0.001) idleBlend = 0;
         idlePhase += dt;
-        const basePhase = idlePhase * ((Math.PI * 2) / 1.75);
+        const basePhase = idlePhase * ((Math.PI * 2) / 2.8);
         const idleAmplitude = amplitude * idleBlend;
 
-        idleNodes.near.forEach((node, i) => {
-          const phase = basePhase - i * 0.34;
-          setIdleFlex(node, Math.sin(phase) * idleAmplitude * SEGMENT_GAIN[i]);
+        idleNodes.near.forEach((node) => {
+          const waveIndex = Number(node.dataset.waveIndex || 0);
+          const phase = basePhase - waveIndex * 0.14;
+          setIdleFlex(node, Math.sin(phase) * idleAmplitude * idleJointGain(waveIndex));
         });
-        idleNodes.far.forEach((node, i) => {
-          const phase = basePhase + 0.12 - i * 0.34;
-          setIdleFlex(node, Math.sin(phase) * idleAmplitude * SEGMENT_GAIN[i] * 0.92);
+        idleNodes.far.forEach((node) => {
+          const waveIndex = Number(node.dataset.waveIndex || 0);
+          const phase = basePhase + 0.22 - waveIndex * 0.14;
+          setIdleFlex(node, Math.sin(phase) * idleAmplitude * idleJointGain(waveIndex) * 0.9);
         });
 
         idleRaf = requestAnimationFrame(idleTick);

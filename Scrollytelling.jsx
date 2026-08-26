@@ -3,6 +3,8 @@ import { createTimeline, createScope, stagger, utils, svg } from 'animejs';
 import Lenis from 'lenis';
 import './scrollytelling.css';
 import moonUrl from './assets/moon.png';
+import OwlRig from './OwlRig.jsx';
+import { SEGMENT_GAIN, isInRanges, sampleWingWave } from './wingMotion.js';
 
 /**
  * QOZYD — cinematic scroll-driven narrative.
@@ -56,6 +58,7 @@ export default function Scrollytelling() {
 
     let disposeScroll = null;
     let disposeCamWake = null;
+    let disposeWingMotion = null;
     // Any engine failure becomes visible on the HUD instead of dying silently.
     const fail = (err) => {
       // eslint-disable-next-line no-console
@@ -85,6 +88,54 @@ export default function Scrollytelling() {
         defaults: { ease: 'inOutSine', duration: 1000 },
         autoplay: false, // the scrollbar is the clock; we seek manually
       });
+
+      /* ===== SEGMENTED WING FLEX ======================================
+       * .wn/.wf stay untouched as the large shoulder flap used by the
+       * existing choreography. These inner wrappers add only the delayed
+       * root -> tip deformation, so changing wing flex cannot overwrite
+       * the master shoulder rotations.
+       */
+      const WING_WAVE_EVENTS = [
+        { at: B.c2b2,       duration: 720, amplitude: 14 },
+        { at: B.c2b3,       duration: 760, amplitude: 6 },
+        { at: B.c3b1 + 60,  duration: 850, amplitude: 4.5 },
+        { at: B.c4b1,       duration: 900, amplitude: 5 },
+        { at: B.c5b3,       duration: 640, amplitude: 11 },
+        { at: B.c6b3 + 100, duration: 620, amplitude: 8 },
+        { at: B.c6b4,       duration: 680, amplitude: 6 },
+        { at: B.c7b1,       duration: 820, amplitude: 5.5 },
+        { at: B.c7b2,       duration: 820, amplitude: 5.5 },
+        { at: B.c7b3,       duration: 820, amplitude: 5.5 },
+        { at: B.c8b1 + 160, duration: 720, amplitude: 6 },
+        { at: B.c8b2 + 250, duration: 520, amplitude: 10 },
+      ];
+      const wingFlexNodes = {
+        near: Array.from(rootRef.current.querySelectorAll('.wn-flex')),
+        far: Array.from(rootRef.current.querySelectorAll('.wf-flex')),
+      };
+      const setSvgRotation = (node, angle) => {
+        if (!node) return;
+        const px = Number(node.dataset.px || 0);
+        const py = Number(node.dataset.py || 0);
+        node.setAttribute('transform', `rotate(${angle.toFixed(3)} ${px} ${py})`);
+      };
+      const applyScrollWingFlex = (ms) => {
+        wingFlexNodes.near.forEach((node, i) => {
+          setSvgRotation(node, sampleWingWave(ms, WING_WAVE_EVENTS, i));
+        });
+        wingFlexNodes.far.forEach((node, i) => {
+          // Tiny extra lag keeps both wings coordinated without looking cloned.
+          setSvgRotation(node, sampleWingWave(ms, WING_WAVE_EVENTS, i, 22) * 0.92);
+        });
+      };
+      const resetAllSegmentFlex = () => {
+        const all = Array.from(rootRef.current.querySelectorAll('.wing-flex'));
+        all.forEach((node) => {
+          const px = Number(node.dataset.px || 0);
+          const py = Number(node.dataset.py || 0);
+          node.setAttribute('transform', `rotate(0 0 0)`);
+        });
+      };
 
       // Diagnostic HUD (dev aid — remove together with .qozyd-hud)
       let driverName = 'native';
@@ -267,6 +318,7 @@ export default function Scrollytelling() {
         const clamped = Math.min(1, Math.max(0, p));
         currentProgress = clamped;
         tl.seek(tl.duration * clamped);
+        applyScrollWingFlex(tl.duration * clamped);
         updateCamTarget(clamped);
         // Dev-only diagnostics — never runs (or renders) in a production build.
         if (import.meta.env.DEV && hudRef.current) {
@@ -646,6 +698,9 @@ export default function Scrollytelling() {
       // still 1:1 scroll-linked either way — this only removes the extra
       // smoothing layer, falling back to the same native driver used when
       // Lenis is unavailable.
+      // ---- Scroll timestamp used by the idle wing relaxation ----
+      let lastScrollAt = 0;
+
       const prefersReducedMotion =
         typeof window.matchMedia === 'function' &&
         window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -676,6 +731,96 @@ export default function Scrollytelling() {
           useNativeDriver();
         }
       }
+
+      /* ===== GENTLE IDLE WING MOTION =================================
+       * Runs a lightweight RAF purely while the story is paused; the owl
+       * "breathes" through its wing segments in the canopy (airborne).
+       * Fully bypassed for prefers-reduced-motion. Never touches the
+       * scroll-driven segment flex: .wing-idle is a separate wrapper.
+       ******************************************************************/
+      const AIRBORNE_RANGES = [[4000, 10000], [16000, 22000]];
+      const IDLE_RATE_ENTER = 4.0;
+      const IDLE_RATE_EXIT = 12.0;
+      const IDLE_AIRBORNE_AMPLITUDE = {
+        forest: 4.0,
+        hunt: 2.3,
+        cavern: 3.0,
+        pond: 2.1,
+      };
+
+      const idleNodes = {
+        near: Array.from(rootRef.current.querySelectorAll('.wn-idle')),
+        far: Array.from(rootRef.current.querySelectorAll('.wf-idle')),
+      };
+      let idleRaf = 0;
+      let idlePhase = 0;
+      let idleBlend = 0;
+      let currentAirborneAmplitude = IDLE_AIRBORNE_AMPLITUDE.forest;
+      let lastActiveAt = 0;
+
+      // Each chapter maps to an idle amplitude + a leading edge so the
+      // flutter softens as the owl moves through different air.
+      const updateAirborneParams = (ms) => {
+        const scene = ms < 10000 ? 'forest' : ms < 15000 ? 'hunt' : ms < 21000 ? 'cavern' : 'pond';
+        currentAirborneAmplitude = IDLE_AIRBORNE_AMPLITUDE[scene];
+      };
+
+      const idleAmplitudeAt = (ms) => {
+        updateAirborneParams(ms);
+        return isInRanges(ms, AIRBORNE_RANGES) ? currentAirborneAmplitude : 0;
+      };
+
+      const setIdleFlex = (node, angle) => {
+        if (!node) return;
+        const px = Number(node.dataset.px || 0);
+        const py = Number(node.dataset.py || 0);
+        node.setAttribute('transform', `rotate(${angle.toFixed(3)} ${px} ${py})`);
+      };
+      const resetIdleFlex = () => {
+        idleNodes.near.forEach((node) => setIdleFlex(node, 0));
+        idleNodes.far.forEach((node) => setIdleFlex(node, 0));
+        idleBlend = 0;
+        idlePhase = 0;
+      };
+
+      // A long gap in scrolling (while still airborne) eases the wings into
+      // their gentle rhythm; resuming scroll snaps the flex back instantly.
+      const idleTick = (now) => {
+        if (!idleRaf) return;
+        const dt = Math.min(64, now - lastActiveAt) / 1000;
+        lastActiveAt = now;
+        const ms = currentProgress * tl.duration;
+        const amplitude = idleAmplitudeAt(ms);
+        const wantBlend = amplitude > 0 ? 1 : 0;
+        idleBlend += (wantBlend - idleBlend) * Math.min(1, dt * (wantBlend ? IDLE_RATE_ENTER : IDLE_RATE_EXIT));
+        if (idleBlend < 0.001) idleBlend = 0;
+        idlePhase += dt;
+        const basePhase = idlePhase * ((Math.PI * 2) / 1.75);
+        const idleAmplitude = amplitude * idleBlend;
+
+        idleNodes.near.forEach((node, i) => {
+          const phase = basePhase - i * 0.34;
+          setIdleFlex(node, Math.sin(phase) * idleAmplitude * SEGMENT_GAIN[i]);
+        });
+        idleNodes.far.forEach((node, i) => {
+          const phase = basePhase + 0.12 - i * 0.34;
+          setIdleFlex(node, Math.sin(phase) * idleAmplitude * SEGMENT_GAIN[i] * 0.92);
+        });
+
+        idleRaf = requestAnimationFrame(idleTick);
+      };
+
+      if (!prefersReducedMotion) {
+        idleRaf = requestAnimationFrame(idleTick);
+      } else {
+        resetIdleFlex();
+      }
+
+      disposeWingMotion = () => {
+        if (idleRaf) cancelAnimationFrame(idleRaf);
+        resetAllSegmentFlex();
+      };
+
       camRaf = requestAnimationFrame(camTick);
       seekToProgress(0); // deterministic first frame (also paints the HUD)
       } catch (err) {
@@ -686,6 +831,7 @@ export default function Scrollytelling() {
     return () => {
       if (disposeScroll) disposeScroll();
       if (disposeCamWake) disposeCamWake();
+      if (disposeWingMotion) disposeWingMotion();
       if (camRaf) cancelAnimationFrame(camRaf);
       scope.revert();
     };
@@ -1069,35 +1215,7 @@ export default function Scrollytelling() {
               ))}
 
               {/* ===== THE OWL · persistent protagonist (perched → gliding → diving → landing) ===== */}
-              <g id="owl-flight" opacity="0">
-                <g id="owl-rotor">
-                  <path d="M -34 18 L -60 46 L -28 42 Z" fill="#fcd34d" />
-                  <g transform="translate(-8, -24)">
-                    <g className="wing wf">
-                      <path d="M 0 0 C -18 -34 -10 -78 18 -96 C 26 -66 30 -34 14 -4 Z" fill="#fbbf24" opacity="0.85" />
-                    </g>
-                  </g>
-                  <path d="M -36 6 C -40 -28 -12 -46 14 -42 C 40 -38 50 -12 44 14 C 38 40 8 52 -12 44 C -30 38 -33 24 -36 6 Z" fill="#fef3c7" />
-                  <circle cx="-6" cy="8" r={3} fill="#f59e0b" opacity="0.5" />
-                  <circle cx="8" cy="2" r={3} fill="#f59e0b" opacity="0.5" />
-                  <circle cx="2" cy="20" r={3} fill="#f59e0b" opacity="0.5" />
-                  <circle cx="40" cy="-48" r={27} fill="#fef3c7" />
-                  <g id="owl-ears" style={{ transformOrigin: '41px -70px' }}>
-                    <path d="M 24 -70 L 30 -86 L 37 -68 Z" fill="#fef3c7" />
-                    <path d="M 47 -70 L 56 -84 L 58 -66 Z" fill="#fef3c7" />
-                  </g>
-                  <path d="M 22 -52 A 20 20 0 1 1 58 -48" stroke="#fbbf24" strokeWidth="3" fill="none" opacity="0.8" />
-                  <circle cx="46" cy="-52" r={5} fill="#1c1917" />
-                  <path d="M 62 -50 L 75 -46 L 61 -41 Z" fill="#f59e0b" />
-                  <path d="M 6 48 L 4 63 M 20 48 L 20 63" stroke="#d97706" strokeWidth="4" strokeLinecap="round" />
-                  <path d="M -2 63 L 10 63 M 14 63 L 27 63" stroke="#d97706" strokeWidth="3" strokeLinecap="round" />
-                  <g transform="translate(6, -20)">
-                    <g className="wing wn">
-                      <path d="M 0 0 C -6 -40 10 -88 44 -104 C 44 -70 36 -30 12 -2 Z" fill="#fcd34d" />
-                    </g>
-                  </g>
-                </g>
-              </g>
+              <OwlRig />
 
               {/* dark aperture — masks the descent through the burrow */}
               <rect id="aperture" x="0" y="0" width="1920" height="1080" fill="#01030a" mask="url(#aperture-mask)" opacity="0" />

@@ -1,0 +1,135 @@
+{
+  "# Anime.js + Three.md": {
+    "mtime": 1787750562.029,
+    "seen": 1787753191.59,
+    "word_count": 132,
+    "ast_hash": "5568ae6472d5facea648facad7819ad2",
+    "semantic_hash": "5568ae6472d5facea648facad7819ad2"
+  },
+  ".gitignore": {
+    "mtime": 1787544199.702,
+    "seen": 1787753191.591,
+    "word_count": 18,
+    "ast_hash": "b598ffbbbcb73bdd3a7bbba6c451e1dc",
+    "semantic_hash": "b598ffbbbcb73bdd3a7bbba6c451e1dc"
+  },
+  "apply-owl-rig-v2-windows.mjs": {
+    "mtime": 1787752351.403,
+    "seen": 1787753191.592,
+    "word_count": 492,
+    "ast_hash": "e356de7d93067299bc6702a0d5ac7b1c",
+    "semantic_hash": "e356de7d93067299bc6702a0d5ac7b1c"
+  },
+  "apply-owl-rig-v2.mjs": {
+    "mtime": 1787751931.158,
+    "seen": 1787753191.592,
+    "word_count": 478,
+    "ast_hash": "23ce5ac5f11e53dba5af026a9428ffd5",
+    "semantic_hash": "23ce5ac5f11e53dba5af026a9428ffd5"
+  },
+  "index.html": {
+    "mtime": 1787548089.764,
+    "seen": 1787753191.593,
+    "word_count": 70,
+    "ast_hash": "f97b0b4ae8a29063d6f1516b19a33b41",
+    "semantic_hash": "f97b0b4ae8a29063d6f1516b19a33b41"
+  },
+  "main.jsx": {
+    "mtime": 1787524989.32,
+    "seen": 1787753191.593,
+    "word_count": 42,
+    "ast_hash": "8fb758ff4939dc9781635969d8558613",
+    "semantic_hash": "8fb758ff4939dc9781635969d8558613"
+  },
+  "OwlRig.jsx": {
+    "mtime": 1787751933.453,
+    "seen": 1787753191.593,
+    "word_count": 374,
+    "ast_hash": "597a12455c2e11c567ffe0940017e908",
+    "semantic_hash": "597a12455c2e11c567ffe0940017e908"
+  },
+  "owlRigMath.js": {
+    "mtime": 1787751931.19,
+    "seen": 1787753191.595,
+    "word_count": 272,
+    "ast_hash": "6ee76fc78bd9e29f1b09a6d22331646e",
+    "semantic_hash": "6ee76fc78bd9e29f1b09a6d22331646e"
+  },
+  "owlRigMath.test.js": {
+    "mtime": 1787751931.181,
+    "seen": 1787753191.595,
+    "word_count": 182,
+    "ast_hash": "b144f686433798197f1bf724a4e2fc24",
+    "semantic_hash": "b144f686433798197f1bf724a4e2fc24"
+  },
+  "package-lock.json": {
+    "mtime": 1787526382.643,
+    "seen": 1787753191.596,
+    "word_count": 3294,
+    "ast_hash": "480882cb99c243829503e47745a98c0d",
+    "semantic_hash": "480882cb99c243829503e47745a98c0d"
+  },
+  "package.json": {
+    "mtime": 1787739247.747,
+    "seen": 1787753191.596,
+    "word_count": 55,
+    "ast_hash": "e7bbc9dc99843b6113192f12b455c433",
+    "semantic_hash": "e7bbc9dc99843b6113192f12b455c433"
+  },
+  "README.txt": {
+    "mtime": 1787751931.143,
+    "seen": 1787753191.597,
+    "word_count": 124,
+    "ast_hash": "b259f1dc008153f57a5e97dcb0548393",
+    "semantic_hash": "b259f1dc008153f57a5e97dcb0548393"
+  },
+  "scripts/err.log": {
+    "mtime": 1787753191.167,
+    "seen": 1787753191.597,
+    "word_count": 0,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "scripts/graphify.mjs": {
+    "mtime": 1787752588.671,
+    "seen": 1787753191.597,
+    "word_count": 1495,
+    "ast_hash": "a38b2f72ab7a2ab1b939ff2919c1e6f2",
+    "semantic_hash": "a38b2f72ab7a2ab1b939ff2919c1e6f2"
+  },
+  "scrollytelling.css": {
+    "mtime": 1787545995.096,
+    "seen": 1787753191.598,
+    "word_count": 360,
+    "ast_hash": "c35240f438ebc5c4da2d2d11884613a6",
+    "semantic_hash": "c35240f438ebc5c4da2d2d11884613a6"
+  },
+  "Scrollytelling.jsx": {
+    "mtime": 1787752370.457,
+    "seen": 1787753191.598,
+    "word_count": 8482,
+    "ast_hash": "b007d8ca5081df5548c4e6957ee90768",
+    "semantic_hash": "b007d8ca5081df5548c4e6957ee90768"
+  },
+  "vite.config.js": {
+    "mtime": 1787524987.121,
+    "seen": 1787753191.599,
+    "word_count": 16,
+    "ast_hash": "eb98c53348e57a55028f415914969a6b",
+    "semantic_hash": "eb98c53348e57a55028f415914969a6b"
+  },
+  "wingMotion.js": {
+    "mtime": 1787739215.236,
+    "seen": 1787753191.599,
+    "word_count": 142,
+    "ast_hash": "4dccfa626eb969a4f12d2f6ce04ac701",
+    "semantic_hash": "4dccfa626eb969a4f12d2f6ce04ac701"
+  },
+  "wingMotion.test.js": {
+    "mtime": 1787739217.653,
+    "seen": 1787753191.599,
+    "word_count": 112,
+    "ast_hash": "87c55fade4c15bbd0d212a3b93d5d1bc",
+    "semantic_hash": "87c55fade4c15bbd0d212a3b93d5d1bc"
+  }
+}

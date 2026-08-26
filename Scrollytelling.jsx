@@ -626,10 +626,13 @@ export default function Scrollytelling() {
         .add('#pond-stars', { opacity: [0.45, 0.75], duration: 1000 }, B.c8b2);
 
       // Beat 3 — Q 🌕 Z Y D across the sky · "Start the journey."
+      // The moon IS the "O" — it lives in the reveal layer, above the pond
+      // sky rect, so the full photo moon shows (not just the halo ring).
       tl.add('#letters g', {
         opacity: [0, 1], translateY: [46, 0], duration: 480, delay: stagger(120),
       }, B.c8b3 + 100)
-        .add('#moon-wrap', {
+        .add('#moon-o', { opacity: [0, 1], duration: 300 }, B.c8b3 + 150)
+        .add('#moon-o', {
           translateX: [1330, 790], translateY: [220, 400],
           scale: [0.5, 0.4667], duration: 650,
         }, B.c8b3 + 250)
@@ -1109,6 +1112,14 @@ export default function Scrollytelling() {
                 <g id="ltr-z" opacity="0"><path d="M 908 352 L 1012 352 L 908 448 L 1012 448" /></g>
                 <g id="ltr-y" opacity="0"><path d="M 1088 352 L 1130 412 L 1172 352 M 1130 412 L 1130 448" /></g>
                 <g id="ltr-d" opacity="0"><path d="M 1258 352 L 1258 448 M 1258 352 C 1334 350 1334 450 1258 448" /></g>
+              </g>
+
+              {/* reveal O · same moon photo, but layered ABOVE the pond sky
+                  rect so the full moon forms the "O" in QOZYD instead of the
+                  halo ring alone. Original #moon-wrap stays for Ch.1–7. */}
+              <g id="moon-o" opacity="0">
+                <circle fill="url(#moon-gradient)" filter="url(#glow)" r="140" opacity="0.5" />
+                <image href={moonUrl} x="-122.5" y="-118.5" width="245" height="237" />
               </g>
 
               <rect x="0" y="0" width="1920" height="1080" fill="url(#global-vignette-gradient)" pointerEvents="none" />

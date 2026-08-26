@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { createTimeline, createScope, stagger, utils, svg } from 'animejs';
 import Lenis from 'lenis';
 import './scrollytelling.css';
+import moonUrl from './assets/moon.png';
 
 /**
  * QOZYD — cinematic scroll-driven narrative.
@@ -771,10 +772,10 @@ export default function Scrollytelling() {
 
               {/* THE MOON — Chapter 1 hero, Chapter 8 letter “O”. One element, one identity. */}
               <g id="moon-wrap">
-                <circle id="moon" r="120" fill="url(#moon-gradient)" filter="url(#glow)" />
-                <circle cx="-38" cy="-20" r="17" fill="#eab308" opacity="0.14" />
-                <circle cx="30" cy="34" r="11" fill="#eab308" opacity="0.12" />
-                <circle cx="8" cy="-52" r="8" fill="#eab308" opacity="0.1" />
+                {/* soft halo keeps the luminous rim behind the photo moon */}
+                <circle fill="url(#moon-gradient)" filter="url(#glow)" r="140" opacity="0.5" />
+                {/* real moon photo (RGBA — transparent corners, disc ~245px → radius ≈ 120) */}
+                <image id="moon" href={moonUrl} x="-122.5" y="-118.5" width="245" height="237" />
               </g>
 
               {/* ===== CHAPTER 1 · CLOSE-UP FACE (abstract white & gold) ===== */}

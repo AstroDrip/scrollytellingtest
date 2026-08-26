@@ -626,13 +626,13 @@ export default function Scrollytelling() {
         .add('#pond-stars', { opacity: [0.45, 0.75], duration: 1000 }, B.c8b2);
 
       // Beat 3 — Q 🌕 Z Y D across the sky · "Start the journey."
-      // The moon IS the "O" — it lives in the reveal layer, above the pond
-      // sky rect, so the full photo moon shows (not just the halo ring).
+      // The moon IS the "O" — the original #moon-wrap (rendered above the
+      // pond sky rect) flies to the wordmark centre, so the full photo moon
+      // shows, not a duplicate element or just the halo ring.
       tl.add('#letters g', {
         opacity: [0, 1], translateY: [46, 0], duration: 480, delay: stagger(120),
       }, B.c8b3 + 100)
-        .add('#moon-o', { opacity: [0, 1], duration: 300 }, B.c8b3 + 150)
-        .add('#moon-o', {
+        .add('#moon-wrap', {
           translateX: [1330, 790], translateY: [220, 400],
           scale: [0.5, 0.4667], duration: 650,
         }, B.c8b3 + 250)
@@ -771,6 +771,48 @@ export default function Scrollytelling() {
                   <ellipse cx="1130" cy="256" rx="100" ry="24" fill="#cbd5e1" />
                 </g>
                 <g opacity="0.08"><ellipse cx="985" cy="430" rx="210" ry="42" fill="#cbd5e1" /></g>
+              </g>
+
+              {/* ===== CHAPTER 8 · POND CLEARING ===== */}
+              <g id="pond" opacity="0">
+                <rect x="0" y="0" width="1920" height="640" fill="#0b1026" />
+                <g id="pond-stars" opacity="0.45">
+                  {[[180, 110], [420, 70], [660, 150], [940, 60], [1180, 130],
+                    [1440, 80], [1680, 160], [300, 260], [1560, 280], [820, 220]]
+                    .map(([cx, cy], i) => (
+                      <circle key={i} cx={cx} cy={cy} r={1.8} fill="#e2e8f0" />
+                    ))}
+                </g>
+                <path d="M 0 660 Q 160 596 340 640 T 700 632 T 1060 644 T 1420 630 T 1780 646 L 1920 620 V 700 H 0 Z" fill="#0c1428" />
+                <ellipse cx="960" cy="880" rx="660" ry="195" fill="url(#pond-gradient)" />
+                <ellipse cx="960" cy="880" rx="660" ry="195" fill="none" stroke="#164e63" strokeWidth="3" opacity="0.6" />
+                <g transform="translate(960, 852)">
+                  <g id="ripple-w-0"><ellipse rx="150" ry="34" fill="none" stroke="#67e8f9" strokeWidth="3" opacity="0" /></g>
+                  <g id="ripple-w-1"><ellipse rx="150" ry="34" fill="none" stroke="#67e8f9" strokeWidth="3" opacity="0" /></g>
+                  <g id="ripple-w-2"><ellipse rx="150" ry="34" fill="none" stroke="#67e8f9" strokeWidth="3" opacity="0" /></g>
+                </g>
+                {/* restrained decorative arcs where fireflies meet cave insects */}
+                <g id="meet-arcs" fill="none" stroke="#e2e8f0" strokeWidth="2.5">
+                  <path d="M 780 700 Q 960 640 1140 700" />
+                  <path d="M 800 728 Q 960 678 1120 728" />
+                </g>
+                <g id="pond-flies" opacity="0" filter="url(#glow)">
+                  <circle cx="700" cy="760" r={4.5} fill="#fde047" />
+                  <circle cx="764" cy="722" r={4} fill="#fde047" />
+                  <circle cx="830" cy="782" r={4.5} fill="#fde047" />
+                  <circle cx="684" cy="812" r={3.5} fill="#fde047" />
+                </g>
+                <g id="pond-bugs" opacity="0">
+                  <polygon points="1180,764 1191,780 1180,796 1169,780" fill="#a5f3fc" />
+                  <ellipse cx="1252" cy="748" rx="12" ry="5.5" fill="#67e8f9" />
+                  <circle cx="1216" cy="812" r={4.5} fill="#e0f2fe" />
+                </g>
+                <g id="pond-branch">
+                  <path d="M 1985 545 Q 1650 570 1290 600" stroke="#241a14" strokeWidth="20" fill="none" strokeLinecap="round" />
+                  <path d="M 1430 585 q -60 12 -112 4" stroke="#241a14" strokeWidth="9" fill="none" strokeLinecap="round" />
+                  <circle cx="1360" cy="598" r={9} fill="#241a14" />
+                </g>
+                <path d="M 120 1080 q 10 -90 -18 -150 M 160 1080 q 26 -80 8 -160 M 1780 1080 q -8 -96 20 -150 M 1740 1080 q -24 -84 -6 -164" stroke="#03121f" strokeWidth="10" fill="none" strokeLinecap="round" />
               </g>
 
               {/* THE MOON — Chapter 1 hero, Chapter 8 letter “O”. One element, one identity. */}
@@ -1009,48 +1051,6 @@ export default function Scrollytelling() {
                 </g>
               </g>
 
-              {/* ===== CHAPTER 8 · POND CLEARING ===== */}
-              <g id="pond" opacity="0">
-                <rect x="0" y="0" width="1920" height="640" fill="#0b1026" />
-                <g id="pond-stars" opacity="0.45">
-                  {[[180, 110], [420, 70], [660, 150], [940, 60], [1180, 130],
-                    [1440, 80], [1680, 160], [300, 260], [1560, 280], [820, 220]]
-                    .map(([cx, cy], i) => (
-                      <circle key={i} cx={cx} cy={cy} r={1.8} fill="#e2e8f0" />
-                    ))}
-                </g>
-                <path d="M 0 660 Q 160 596 340 640 T 700 632 T 1060 644 T 1420 630 T 1780 646 L 1920 620 V 700 H 0 Z" fill="#0c1428" />
-                <ellipse cx="960" cy="880" rx="660" ry="195" fill="url(#pond-gradient)" />
-                <ellipse cx="960" cy="880" rx="660" ry="195" fill="none" stroke="#164e63" strokeWidth="3" opacity="0.6" />
-                <g transform="translate(960, 852)">
-                  <g id="ripple-w-0"><ellipse rx="150" ry="34" fill="none" stroke="#67e8f9" strokeWidth="3" opacity="0" /></g>
-                  <g id="ripple-w-1"><ellipse rx="150" ry="34" fill="none" stroke="#67e8f9" strokeWidth="3" opacity="0" /></g>
-                  <g id="ripple-w-2"><ellipse rx="150" ry="34" fill="none" stroke="#67e8f9" strokeWidth="3" opacity="0" /></g>
-                </g>
-                {/* restrained decorative arcs where fireflies meet cave insects */}
-                <g id="meet-arcs" fill="none" stroke="#e2e8f0" strokeWidth="2.5">
-                  <path d="M 780 700 Q 960 640 1140 700" />
-                  <path d="M 800 728 Q 960 678 1120 728" />
-                </g>
-                <g id="pond-flies" opacity="0" filter="url(#glow)">
-                  <circle cx="700" cy="760" r={4.5} fill="#fde047" />
-                  <circle cx="764" cy="722" r={4} fill="#fde047" />
-                  <circle cx="830" cy="782" r={4.5} fill="#fde047" />
-                  <circle cx="684" cy="812" r={3.5} fill="#fde047" />
-                </g>
-                <g id="pond-bugs" opacity="0">
-                  <polygon points="1180,764 1191,780 1180,796 1169,780" fill="#a5f3fc" />
-                  <ellipse cx="1252" cy="748" rx="12" ry="5.5" fill="#67e8f9" />
-                  <circle cx="1216" cy="812" r={4.5} fill="#e0f2fe" />
-                </g>
-                <g id="pond-branch">
-                  <path d="M 1985 545 Q 1650 570 1290 600" stroke="#241a14" strokeWidth="20" fill="none" strokeLinecap="round" />
-                  <path d="M 1430 585 q -60 12 -112 4" stroke="#241a14" strokeWidth="9" fill="none" strokeLinecap="round" />
-                  <circle cx="1360" cy="598" r={9} fill="#241a14" />
-                </g>
-                <path d="M 120 1080 q 10 -90 -18 -150 M 160 1080 q 26 -80 8 -160 M 1780 1080 q -8 -96 20 -150 M 1740 1080 q -24 -84 -6 -164" stroke="#03121f" strokeWidth="10" fill="none" strokeLinecap="round" />
-              </g>
-
               {/* ===== CHAPTER 5 · RAT & GOLDEN SOUND RINGS ===== */}
               <g transform="translate(660, 952)">
                 <g id="rat" opacity="0">
@@ -1112,14 +1112,6 @@ export default function Scrollytelling() {
                 <g id="ltr-z" opacity="0"><path d="M 908 352 L 1012 352 L 908 448 L 1012 448" /></g>
                 <g id="ltr-y" opacity="0"><path d="M 1088 352 L 1130 412 L 1172 352 M 1130 412 L 1130 448" /></g>
                 <g id="ltr-d" opacity="0"><path d="M 1258 352 L 1258 448 M 1258 352 C 1334 350 1334 450 1258 448" /></g>
-              </g>
-
-              {/* reveal O · same moon photo, but layered ABOVE the pond sky
-                  rect so the full moon forms the "O" in QOZYD instead of the
-                  halo ring alone. Original #moon-wrap stays for Ch.1–7. */}
-              <g id="moon-o" opacity="0">
-                <circle fill="url(#moon-gradient)" filter="url(#glow)" r="140" opacity="0.5" />
-                <image href={moonUrl} x="-122.5" y="-122.2" width="245" height="244.4" />
               </g>
 
               <rect x="0" y="0" width="1920" height="1080" fill="url(#global-vignette-gradient)" pointerEvents="none" />

@@ -778,7 +778,7 @@ export default function Scrollytelling() {
                 {/* soft halo keeps the luminous rim behind the photo moon */}
                 <circle fill="url(#moon-gradient)" filter="url(#glow)" r="140" opacity="0.5" />
                 {/* real moon photo (RGBA — transparent corners, disc ~245px → radius ≈ 120) */}
-                <image id="moon" href={moonUrl} x="-122.5" y="-118.5" width="245" height="237" />
+                <image id="moon" href={moonUrl} x="-122.5" y="-122.2" width="245" height="244.4" />
               </g>
 
               {/* ===== CHAPTER 1 · CLOSE-UP FACE (abstract white & gold) ===== */}
@@ -1119,7 +1119,7 @@ export default function Scrollytelling() {
                   halo ring alone. Original #moon-wrap stays for Ch.1–7. */}
               <g id="moon-o" opacity="0">
                 <circle fill="url(#moon-gradient)" filter="url(#glow)" r="140" opacity="0.5" />
-                <image href={moonUrl} x="-122.5" y="-118.5" width="245" height="237" />
+                <image href={moonUrl} x="-122.5" y="-122.2" width="245" height="244.4" />
               </g>
 
               <rect x="0" y="0" width="1920" height="1080" fill="url(#global-vignette-gradient)" pointerEvents="none" />
